@@ -11,10 +11,8 @@ import android.view.WindowManager;
 
 import com.ldm.rtsp.R;
 import com.ldm.rtsp.rtp.H264StreamInterface;
-import com.ldm.rtsp.rtp.RtpRequestModel;
-import com.ldm.rtsp.rtp.RtpResponseModel;
-import com.ldm.rtsp.rtp.VideoStreamImpl;
 import com.ldm.rtsp.rtp.TCP4RtspUtil;
+import com.ldm.rtsp.rtp.VideoStreamImpl;
 import com.ldm.rtsp.rtsp.RtspDecoder;
 import com.ldm.rtsp.utils.Constant;
 
@@ -47,6 +45,7 @@ public class RtspActivity extends AppCompatActivity implements SurfaceHolder.Cal
     InputStream is;
     private RtspDecoder mPlayer = null;
     private String rtsp_url;
+    private TCP4RtspUtil client;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,20 +56,10 @@ public class RtspActivity extends AppCompatActivity implements SurfaceHolder.Cal
         mSurfaceView = (SurfaceView) findViewById(R.id.surfaceview);
         mSurfaceView.getHolder().addCallback(this);
         rtsp_url = getIntent().getStringExtra(Constant.RTSP_URL);
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    getRtspStream();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }).start();
     }
 
     private void getRtspStream() throws Exception {
-        TCP4RtspUtil client = new TCP4RtspUtil(Constant.SERVER_IP, Constant.SERVER_PORT, new VideoStreamImpl(new H264StreamInterface() {
+        client = new TCP4RtspUtil(rtsp_url, new VideoStreamImpl(new H264StreamInterface() {
             private OutputStream out = new FileOutputStream(filePath);
 
             public void process(byte[] stream) {
@@ -89,69 +78,23 @@ public class RtspActivity extends AppCompatActivity implements SurfaceHolder.Cal
             }
         }));
         client.doStart();
-        /**
-         * RTSP OPTION请求，目的是得到服务器提供什么方法。
-         * RTSP提供的方法一般包括OPTIONS、DESCRIBE、SETUP、TEARDOWN、PLAY、PAUSE、SCALE、GET_PARAMETER
-         */
-        RtpRequestModel options = new RtpRequestModel();
-        options.setMethod("OPTIONS");
-        options.setUri(rtsp_url);
-        options.setVersion("RTSP/1.0");
-        RtpResponseModel resp1 = client.options(options, 15000L);
-        Log.e(Constant.LOG_TAG, resp1.toString());
-        /**
-         * RTSP DESCRIBE请求，服务器收到的信息主要有媒体的名字，解码类型，视频分辨率等描述
-         * 目的是为了从服务器那里得到会话描述信息（SDP）
-         */
-        RtpRequestModel describe = new RtpRequestModel();
-        describe.setMethod("DESCRIBE");
-        describe.setUri(rtsp_url);
-        describe.setVersion("RTSP/1.0");
-        describe.getHeaders().put("Accept", "application/sdp");
-        RtpResponseModel resp2 = client.describe(options, 15000L);
-        Log.e(Constant.LOG_TAG, resp2.toString());
-        /**
-         * RTSP SETUP请求。
-         * 目的是请求会话建立并准备传输。请求信息主要包括传输协议和客户端端口号。
-         */
-        RtpRequestModel setup = new RtpRequestModel();
-        setup.setMethod("SETUP");
-        setup.setUri(rtsp_url + "/trackID=0");
-        setup.setVersion("RTSP/1.0");
-        setup.getHeaders().put("Transport", "RTP/AVP/TCP;unicast;interleaved=2-3");
-        RtpResponseModel resp3 = client.setup(setup, 15000L);
-        Log.e(Constant.LOG_TAG, resp3.toString());
-        String sessionId = ((String) resp3.getHeaders().get("session")).split(";")[0];
-        /**
-         * RTSP PLAY的请求
-         * 目的是请求播放视频流
-         */
-        RtpRequestModel play = new RtpRequestModel();
-        play.setMethod("PLAY");
-        play.setUri(rtsp_url + "/trackID=0");
-        play.setVersion("RTSP/1.0");
-        play.getHeaders().put("Session", sessionId);
-        play.getHeaders().put("Range", "npt=0.000-");
-        client.play(play);
-        Thread.sleep(30000L);
-        client.doStop();
-    }
-
-
-    private void stop(String sessionId) throws IOException {
-        StringBuilder builder = new StringBuilder();
-        builder.append("TEARDOWN ").append(" ")
-                .append(rtsp_url).append(" ")
-                .append("RTSP/1.0").append("\r\n");
-        builder.append("CSeq:").append(" ").append(7).append("\r\n");
-        builder.append("Session:").append(" ").append(sessionId)
-                .append("\r\n");
-        builder.append("\r\n");
     }
 
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    getRtspStream();
+                    //调用播放开关
+                    client.play();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
         //初始化实时流解码器
         mPlayer = new RtspDecoder(holder.getSurface(), 0);
     }

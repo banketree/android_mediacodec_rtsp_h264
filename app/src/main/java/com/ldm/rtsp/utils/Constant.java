@@ -8,7 +8,5 @@ package com.ldm.rtsp.utils;
  */
 public class Constant {
     public static final String LOG_TAG = "RTSP";
-    public static final String SERVER_IP = "192.168.1.168";
-    public static final int SERVER_PORT = 80;
     public static final String RTSP_URL = "rtsp_url";
 }
