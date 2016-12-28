@@ -12,7 +12,7 @@
             android:layout_height="wrap_content"
             android:hint="请输入RTSP视频流URL"
             android:textSize="16sp"
-            android:text="rtsp://192.168.1.172:554/live/chn0"
+            android:text=""
             android:layout_marginTop="20dp"/>
 
     <Button
